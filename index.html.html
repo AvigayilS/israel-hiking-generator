@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Israel Hiking Route Generator</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        .leaflet-container {
+            height: 100%;
+            border-radius: 0.5rem;
+        }
+        
+        .rtl {
+            direction: rtl;
+            text-align: right;
+        }
+        
+        .star-rating {
+            display: inline-flex;
+            gap: 0.25rem;
+            cursor: pointer;
+        }
+        
+        .star {
+            font-size: 1.5rem;
+            transition: color 0.2s;
+        }
+        
+        .star.filled {
+            color: #fbbf24;
+        }
+        
+        .star.empty {
+            color: #d1d5db;
+        }
+        
+        .photo-preview {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 0.5rem;
+        }
+        
+        .elevation-chart {
+            height: 150px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+        }
+        
+        .map-container {
+            height: 250px;
+            position: relative;
+        }
+        
+        .difficulty-easy { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .difficulty-moderate { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .difficulty-hard { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        
+        const translations = {
+            en: {
+                title: "Israel Hiking Route Generator",
+                subtitle: "Discover your next adventure",
+                yourPreferences: "Your Preferences",
+                trailLength: "Trail Length (km)",
+                routeType: "Route Type",
+                circular: "Circular/Loop",
+                pointToPoint: "Point-to-Point",
+                difficulty: "Difficulty Level",
+                easy: "Easy",
+                moderate: "Moderate",
+                hard: "Hard",
+                all: "All",
+                region: "Region",
+                elevationRange: "Elevation Range (m)",
+                min: "Min",
+                max: "Max",
+                generateRoutes: "🔍 Generate Routes",
+                generating: "Generating routes...",
+                foundRoutes: "Found {count} routes matching your criteria",
+                completedHidden: "{count} completed routes hidden",
+                showCompleted: "Show completed routes",
+                hideCompleted: "Hide completed routes",
+                km: "km",
+                meters: "m",
+                metersGain: "m gain",
+                hours: "hours",
+                elevationProfile: "Elevation Profile",
+                routeDetails: "Route Details",
+                highlights: "Trail Highlights",
+                waterSources: "Water Sources",
+                facilities: "Facilities",
+                viewOnMap: "🗺️ Open in Israel Hiking Map",
+                addToJournal: "📝 Add to Journal",
+                hideJournal: "Hide Journal",
+                hikingJournal: "Hiking Journal",
+                date: "Date Hiked",
+                rating: "Your Rating",
+                notes: "Notes & Comments",
+                notesPlaceholder: "How was the hike? Any tips for others?",
+                uploadPhotos: "📷 Upload Photos",
+                photos: "Photos",
+                saveJournal: "💾 Save to Journal",
+                markCompleted: "✓ Mark as Completed",
+                completedHikes: "Completed Hikes",
+                clearAll: "Clear All",
+                remove: "Remove",
+                completedNote: "These routes won't appear in search results",
+                showOnMap: "Show on Map",
+                distance: "Distance",
+                elevation: "Elevation",
+                duration: "Duration",
+                type: "Type",
+                loop: "Loop",
+                oneWay: "One-way",
+                startPoint: "Start Point",
+                endPoint: "End Point",
+                exportGPX: "📥 Export GPX",
+                share: "Share",
+                noRoutes: "No routes found. Try adjusting your filters.",
+                loadingMap: "Loading map...",
+                regions: {
+                    all: "All",
+                    north: "Northern Israel",
+                    golan: "Golan Heights",
+                    galilee: "Galilee",
+                    carmel: "Mount Carmel",
+                    jerusalem: "Jerusalem Hills",
+                    negev: "Negev Desert",
+                    judean: "Judean Desert",
+                    eilat: "Eilat Mountains",
+                    coastal: "Coastal Plain"
+                }
+            },
+            he: {
+                title: "גנרטור מסלולי טיול",
+                subtitle: "גלה את ההרפתקה הבאה שלך",
+                yourPreferences: "העדפות החיפוש",
+                trailLength: "אורך המסלול (ק״מ)",
+                routeType: "סוג מסלול",
+                circular: "מעגלי/לולאה",
+                pointToPoint: "נקודה לנקודה",
+                difficulty: "רמת קושי",
+                easy: "קל",
+                moderate: "בינוני",
+                hard: "קשה",
+                all: "כל",
+                region: "אזור",
+                elevationRange: "טווח גובה (מ׳)",
+                min: "מינימום",
+                max: "מקסימום",
+                generateRoutes: "🔍 חפש מסלולים",
+                generating: "מחפש מסלולים...",
+                foundRoutes: "נמצאו {count} מסלולים מתאימים",
+                completedHidden: "{count} מסלולים שהושלמו מוסתרים",
+                showCompleted: "הצג מסלולים שהושלמו",
+                hideCompleted: "הסתר מסלולים שהושלמו",
+                km: "ק״מ",
+                meters: "מ׳",
+                metersGain: "מ׳ עליה",
+                hours: "שעות",
+                elevationProfile: "פרופיל גובה",
+                routeDetails: "פרטי המסלול",
+                highlights: "דגשי השביל",
+                waterSources: "מקורות מים",
+                facilities: "מתקנים",
+                viewOnMap: "🗺️ פתח במפת ישראל מטיילת",
+                addToJournal: "📝 הוסף ליומן",
+                hideJournal: "הסתר יומן",
+                hikingJournal: "יומן טיולים",
+                date: "תאריך הטיול",
+                rating: "הדירוג שלך",
+                notes: "הערות ותצפיות",
+                notesPlaceholder: "איך היה הטיול? יש טיפים לאחרים?",
+                uploadPhotos: "📷 העלה תמונות",
+                photos: "תמונות",
+                saveJournal: "💾 שמור ליומן",
+                markCompleted: "✓ סמן כהושלם",
+                completedHikes: "טיולים שהושלמו",
+                clearAll: "נקה הכל",
+                remove: "הסר",
+                completedNote: "מסלולים אלה לא יופיעו בתוצאות החיפוש",
+                showOnMap: "הצג במפה",
+                distance: "מרחק",
+                elevation: "גובה",
+                duration: "משך",
+                type: "סוג",
+                loop: "לולאה",
+                oneWay: "כיוון אחד",
+                startPoint: "נקודת התחלה",
+                endPoint: "נקודת סיום",
+                exportGPX: "📥 ייצא GPX",
+                share: "שתף",
+                noRoutes: "לא נמצאו מסלולים. נסה לשנות את הפילטרים.",
+                loadingMap: "טוען מפה...",
+                regions: {
+                    all: "כל",
+                    north: "צפון הארץ",
+                    golan: "רמת הגולן",
+                    galilee: "הגליל",
+                    carmel: "הר הכרמל",
+                    jerusalem: "הרי ירושלים",
+                    negev: "הנגב",
+                    judean: "מדבר יהודה",
+                    eilat: "הרי אילת",
+                    coastal: "המישור החופי"
+                }
+            }
+        };
+
+        // Sample route data - In production, this would come from an API
+        const sampleRoutes = [
+            {
+                id: 1,
+                name: "Mount Arbel Loop",
+                nameHe: "מסלול הר ארבל",
+                region: "galilee",
+                length: 8.5,
+                difficulty: "moderate",
+                type: "circular",
+                elevationGain: 380,
+                minElevation: -180,
+                maxElevation: 200,
+                estimatedTime: 3.5,
+                startPoint: "Arbel Parking",
+                startPointHe: "חניון ארבל",
+                coordinates: [32.8197, 35.5031],
+                highlights: ["Stunning views of Sea of Galilee", "Ancient synagogue", "Arbel Cliffs"],
+                highlightsHe: ["נוף מרהיב לכנרת", "בית כנסת עתיק", "צוקי ארבל"],
+                waterSources: 1,
+                facilities: ["Parking", "Restrooms"],
+                url: "https://israelhiking.osm.org.il/share/pxVq6JBLwH"
+            },
+            {
+                id: 2,
+                name: "Makhtesh Ramon Crater",
+                nameHe: "מכתש רמון",
+                region: "negev",
+                length: 12.3,
+                difficulty: "hard",
+                type: "circular",
+                elevationGain: 450,
+                minElevation: 600,
+                maxElevation: 1050,
+                estimatedTime: 5,
+                startPoint: "Mitzpe Ramon Visitor Center",
+                startPointHe: "מרכז מבקרים מצפה רמון",
+                coordinates: [30.6103, 34.8014],
+                highlights: ["Desert landscapes", "Geological formations", "Wildlife viewing"],
+                highlightsHe: ["נופי מדבר", "תצורות גיאולוגיות", "צפייה בחיות בר"],
+                waterSources: 0,
+                facilities: ["Visitor Center", "Parking", "Camping"],
+                url: "https://israelhiking.osm.org.il/share/wY5KjMnRtF"
+            },
+            {
+                id: 3,
+                name: "Nahal Amud",
+                nameHe: "נחל עמוד",
+                region: "galilee",
+                length: 7.2,
+                difficulty: "easy",
+                type: "point-to-point",
+                elevationGain: 150,
+                minElevation: -180,
+                maxElevation: -30,
+                estimatedTime: 3,
+                startPoint: "Tzemach Junction",
+                startPointHe: "צומת צמח",
+                endPoint: "Hukok",
+                endPointHe: "חוקוק",
+                coordinates: [32.8333, 35.6000],
+                highlights: ["Year-round stream", "Historical caves", "Lush vegetation"],
+                highlightsHe: ["נחל עונתי", "מערות היסטוריות", "צמחייה עשירה"],
+                waterSources: 3,
+                facilities: ["Parking at both ends"],
+                url: "https://israelhiking.osm.org.il/share/aB3Cd4EfGh"
+            },
+            {
+                id: 4,
+                name: "Golan Heights Trail",
+                nameHe: "שביל הגולן",
+                region: "golan",
+                length: 15.8,
+                difficulty: "hard",
+                type: "point-to-point",
+                elevationGain: 620,
+                minElevation: 200,
+                maxElevation: 820,
+                estimatedTime: 6,
+                startPoint: "Katzrin",
+                startPointHe: "קצרין",
+                endPoint: "Merom Golan",
+                endPointHe: "מרום גולן",
+                coordinates: [32.9928, 35.6961],
+                highlights: ["Basalt formations", "Panoramic views", "War remnants"],
+                highlightsHe: ["תצורות בזלת", "נופים פנורמיים", "שרידי קרבות"],
+                waterSources: 2,
+                facilities: ["Multiple access points", "Camping areas"],
+                url: "https://israelhiking.osm.org.il/share/iJ5KlMnOpQ"
+            },
+            {
+                id: 5,
+                name: "Ein Gedi Nature Reserve",
+                nameHe: "שמורת עין גדי",
+                region: "judean",
+                length: 6.5,
+                difficulty: "moderate",
+                type: "circular",
+                elevationGain: 280,
+                minElevation: -400,
+                maxElevation: -120,
+                estimatedTime: 3.5,
+                startPoint: "Ein Gedi Parking",
+                startPointHe: "חניון עין גדי",
+                coordinates: [31.4618, 35.3884],
+                highlights: ["Waterfalls", "Ibex viewing", "Desert oasis"],
+                highlightsHe: ["מפלים", "צפייה ביעלים", "נווה מדבר"],
+                waterSources: 4,
+                facilities: ["Visitor Center", "Parking", "Restrooms", "Camping"],
+                url: "https://israelhiking.osm.org.il/share/rS7TuVwXyZ"
+            },
+            {
+                id: 6,
+                name: "Mount Hermon Trail",
+                nameHe: "שביל החרמון",
+                region: "golan",
+                length: 9.2,
+                difficulty: "hard",
+                type: "circular",
+                elevationGain: 580,
+                minElevation: 1600,
+                maxElevation: 2180,
+                estimatedTime: 4.5,
+                startPoint: "Hermon Base Station",
+                startPointHe: "תחנה תחתונה חרמון",
+                coordinates: [33.2903, 35.7772],
+                highlights: ["Alpine environment", "Snow in winter", "Rare plants"],
+                highlightsHe: ["סביבה אלפינית", "שלג בחורף", "צמחים נדירים"],
+                waterSources: 1,
+                facilities: ["Ski resort", "Parking", "Restaurants"],
+                url: "https://israelhiking.osm.org.il/share/aB1Cd2Ef3G"
+            },
+            {
+                id: 7,
+                name: "Carmel Coastal Path",
+                nameHe: "שביל חוף הכרמל",
+                region: "carmel",
+                length: 11.5,
+                difficulty: "easy",
+                type: "point-to-point",
+                elevationGain: 220,
+                minElevation: 0,
+                maxElevation: 220,
+                estimatedTime: 4,
+                startPoint: "Dor Beach",
+                startPointHe: "חוף דור",
+                endPoint: "Atlit",
+                endPointHe: "עתלית",
+                coordinates: [32.6186, 34.9167],
+                highlights: ["Mediterranean views", "Ancient ruins", "Forest paths"],
+                highlightsHe: ["נוף הים התיכון", "חורבות עתיקות", "שבילי יער"],
+                waterSources: 2,
+                facilities: ["Beach facilities", "Parking"],
+                url: "https://israelhiking.osm.org.il/share/hI4JkL5Mn6"
+            },
+            {
+                id: 8,
+                name: "Jerusalem Hills Trail",
+                nameHe: "שביל הרי ירושלים",
+                region: "jerusalem",
+                length: 13.2,
+                difficulty: "moderate",
+                type: "circular",
+                elevationGain: 420,
+                minElevation: 600,
+                maxElevation: 1020,
+                estimatedTime: 5,
+                startPoint: "Ein Hemed",
+                startPointHe: "עין חמד",
+                coordinates: [31.8117, 35.0581],
+                highlights: ["Pine forests", "Spring flowers", "Historical sites"],
+                highlightsHe: ["יערות אורן", "פרחי אביב", "אתרים היסטוריים"],
+                waterSources: 3,
+                facilities: ["Picnic areas", "Parking"],
+                url: "https://israelhiking.osm.org.il/share/oP6QrS7Tu8"
+            }
+        ];
+
+        function RouteCard({ route, language, onAddJournal, onComplete, isCompleted }) {
+            const [showJournal, setShowJournal] = useState(false);
+            const [journalData, setJournalData] = useState({
+                date: new Date().toISOString().split('T')[0],
+                rating: 0,
+                notes: '',
+                photos: []
+            });
+            const [showMap, setShowMap] = useState(false);
+            const mapRef = useRef(null);
+            const mapInstanceRef = useRef(null);
+            const chartRef = useRef(null);
+            const chartInstanceRef = useRef(null);
+            
+            const t = translations[language];
+            const isRTL = language === 'he';
+            const routeName = language === 'he' ? route.nameHe : route.name;
+            const highlights = language === 'he' ? route.highlightsHe : route.highlights;
+            const startPoint = language === 'he' ? route.startPointHe : route.startPoint;
+            const endPoint = language === 'he' && route.endPointHe ? route.endPointHe : route.endPoint;
+
+            useEffect(() => {
+                if (showMap && mapRef.current && !mapInstanceRef.current) {
+                    // Initialize Leaflet map
+                    const map = L.map(mapRef.current).setView(route.coordinates, 13);
+                    
+                    // Add Israel Hiking Map tiles
+                    L.tileLayer('https://israelhiking.osm.org.il/Hebrew/tiles/{z}/{x}/{y}.png', {
+                        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                        maxZoom: 18
+                    }).addTo(map);
+                    
+                    // Add marker for start point
+                    L.marker(route.coordinates).addTo(map)
+                        .bindPopup(routeName);
+                    
+                    mapInstanceRef.current = map;
+                }
+                
+                return () => {
+                    if (mapInstanceRef.current) {
+                        mapInstanceRef.current.remove();
+                        mapInstanceRef.current = null;
+                    }
+                };
+            }, [showMap]);
+
+            useEffect(() => {
+                if (showMap && chartRef.current && !chartInstanceRef.current) {
+                    // Create elevation profile
+                    const ctx = chartRef.current.getContext('2d');
+                    const points = 20;
+                    const data = [];
+                    const labels = [];
+                    
+                    for (let i = 0; i <= points; i++) {
+                        const progress = i / points;
+                        // Simulate elevation profile
+                        const elevation = route.minElevation + 
+                            Math.sin(progress * Math.PI) * (route.maxElevation - route.minElevation);
+                        data.push(elevation);
+                        labels.push((route.length * progress).toFixed(1));
+                    }
+                    
+                    chartInstanceRef.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: t.elevation,
+                                data: data,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                fill: true,
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: (context) => `${context.parsed.y.toFixed(0)}m`
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    title: { display: true, text: `${t.distance} (${t.km})` },
+                                    grid: { display: false }
+                                },
+                                y: {
+                                    title: { display: true, text: `${t.elevation} (${t.meters})` }
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                return () => {
+                    if (chartInstanceRef.current) {
+                        chartInstanceRef.current.destroy();
+                        chartInstanceRef.current = null;
+                    }
+                };
+            }, [showMap]);
+
+            const handlePhotoUpload = (e) => {
+                const files = Array.from(e.target.files);
+                const photoPromises = files.map(file => {
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.readAsDataURL(file);
+                    });
+                });
+                
+                Promise.all(photoPromises).then(photos => {
+                    setJournalData({
+                        ...journalData,
+                        photos: [...journalData.photos, ...photos]
+                    });
+                });
+            };
+
+            const handleSaveJournal = () => {
+                onAddJournal(route.id, journalData);
+                onComplete(route.id);
+                setShowJournal(false);
+            };
+
+            const difficultyClass = `difficulty-${route.difficulty}`;
+
+            return (
+                <div className={`bg-white rounded-xl shadow-lg overflow-hidden animate-fade-in ${isRTL ? 'rtl' : ''}`}>
+                    <div className={`${difficultyClass} text-white p-6`}>
+                        <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                                <h3 className="text-2xl font-bold mb-2">{routeName}</h3>
+                                <div className="flex gap-2 flex-wrap">
+                                    <span className="bg-white/20 px-3 py-1 rounded-full text-sm">
+                                        {t[route.difficulty]}
+                                    </span>
+                                    <span className="bg-white/20 px-3 py-1 rounded-full text-sm">
+                                        {route.type === 'circular' ? t.loop : t.oneWay}
+                                    </span>
+                                    <span className="bg-white/20 px-3 py-1 rounded-full text-sm">
+                                        {t.regions[route.region]}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            <div className="bg-blue-50 rounded-lg p-4 text-center">
+                                <div className="text-3xl font-bold text-blue-600">{route.length}</div>
+                                <div className="text-sm text-gray-600">{t.km}</div>
+                            </div>
+                            <div className="bg-green-50 rounded-lg p-4 text-center">
+                                <div className="text-3xl font-bold text-green-600">{route.elevationGain}</div>
+                                <div className="text-sm text-gray-600">{t.metersGain}</div>
+                            </div>
+                            <div className="bg-orange-50 rounded-lg p-4 text-center">
+                                <div className="text-xl font-bold text-orange-600">
+                                    {route.minElevation}→{route.maxElevation}m
+                                </div>
+                                <div className="text-sm text-gray-600">{t.elevation}</div>
+                            </div>
+                            <div className="bg-purple-50 rounded-lg p-4 text-center">
+                                <div className="text-3xl font-bold text-purple-600">{route.estimatedTime}</div>
+                                <div className="text-sm text-gray-600">{t.hours}</div>
+                            </div>
+                        </div>
+
+                        {/* Route Info */}
+                        <div className="mb-6">
+                            <p className="text-sm text-gray-600 mb-2">
+                                <strong>{t.startPoint}:</strong> {startPoint}
+                            </p>
+                            {endPoint && (
+                                <p className="text-sm text-gray-600 mb-2">
+                                    <strong>{t.endPoint}:</strong> {endPoint}
+                                </p>
+                            )}
+                            <div className="mt-4">
+                                <p className="font-semibold mb-2">{t.highlights}:</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {highlights.map((highlight, idx) => (
+                                        <span key={idx} className="bg-gray-100 px-3 py-1 rounded-full text-sm">
+                                            {highlight}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Map Toggle */}
+                        <button
+                            onClick={() => setShowMap(!showMap)}
+                            className="w-full bg-gray-100 hover:bg-gray-200 py-2 px-4 rounded-lg mb-4 transition"
+                        >
+                            {showMap ? `${isRTL ? '▼' : '▼'} ${t.showOnMap}` : `${isRTL ? '◀' : '▶'} ${t.showOnMap}`}
+                        </button>
+
+                        {/* Map and Elevation Profile */}
+                        {showMap && (
+                            <div className="mb-6 space-y-4">
+                                <div className="map-container rounded-lg overflow-hidden border">
+                                    <div ref={mapRef}></div>
+                                </div>
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                    <h4 className="font-semibold mb-2">{t.elevationProfile}</h4>
+                                    <div className="elevation-chart">
+                                        <canvas ref={chartRef}></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <a
+                                href={route.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg text-center transition font-medium"
+                            >
+                                {t.viewOnMap}
+                            </a>
+                            <button
+                                onClick={() => setShowJournal(!showJournal)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition font-medium"
+                            >
+                                {showJournal ? t.hideJournal : t.addToJournal}
+                            </button>
+                        </div>
+
+                        {/* Journal Form */}
+                        {showJournal && (
+                            <div className="mt-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                                <h4 className="text-xl font-bold mb-4 text-blue-900">{t.hikingJournal}</h4>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">{t.date}</label>
+                                        <input
+                                            type="date"
+                                            value={journalData.date}
+                                            onChange={(e) => setJournalData({...journalData, date: e.target.value})}
+                                            className="w-full p-3 border rounded-lg"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">{t.rating}</label>
+                                        <div className="star-rating">
+                                            {[1, 2, 3, 4, 5].map(star => (
+                                                <span
+                                                    key={star}
+                                                    className={`star ${star <= journalData.rating ? 'filled' : 'empty'}`}
+                                                    onClick={() => setJournalData({...journalData, rating: star})}
+                                                >
+                                                    ★
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">{t.notes}</label>
+                                        <textarea
+                                            value={journalData.notes}
+                                            onChange={(e) => setJournalData({...journalData, notes: e.target.value})}
+                                            placeholder={t.notesPlaceholder}
+                                            rows={4}
+                                            className="w-full p-3 border rounded-lg resize-none"
+                                            dir={isRTL ? 'rtl' : 'ltr'}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">{t.uploadPhotos}</label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={handlePhotoUpload}
+                                            className="w-full p-2 border rounded-lg"
+                                        />
+                                        {journalData.photos.length > 0 && (
+                                            <div className="flex gap-2 mt-3 flex-wrap">
+                                                {journalData.photos.map((photo, idx) => (
+                                                    <img
+                                                        key={idx}
+                                                        src={photo}
+                                                        alt={`Upload ${idx + 1}`}
+                                                        className="photo-preview border-2 border-white shadow"
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        onClick={handleSaveJournal}
+                                        className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition"
+                                    >
+                                        {t.markCompleted}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function App() {
+            const [language, setLanguage] = useState('en');
+            const [filters, setFilters] = useState({
+                minLength: 5,
+                maxLength: 100,
+                difficulty: 'all',
+                region: 'all',
+                type: 'all',
+                minElevation: -450,
+                maxElevation: 2200
+            });
+            const [routes, setRoutes] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [completedRoutes, setCompletedRoutes] = useState([]);
+            const [journals, setJournals] = useState({});
+            const [showCompleted, setShowCompleted] = useState(false);
+
+            const t = translations[language];
+            const isRTL = language === 'he';
+
+            // Load from localStorage on mount
+            useEffect(() => {
+                const savedCompleted = localStorage.getItem('completedRoutes');
+                const savedJournals = localStorage.getItem('journals');
+                if (savedCompleted) setCompletedRoutes(JSON.parse(savedCompleted));
+                if (savedJournals) setJournals(JSON.parse(savedJournals));
+            }, []);
+
+            // Save to localStorage when changed
+            useEffect(() => {
+                localStorage.setItem('completedRoutes', JSON.stringify(completedRoutes));
+            }, [completedRoutes]);
+
+            useEffect(() => {
+                localStorage.setItem('journals', JSON.stringify(journals));
+            }, [journals]);
+
+            const generateRoutes = () => {
+                setLoading(true);
+                
+                // Simulate API call
+                setTimeout(() => {
+                    const filtered = sampleRoutes.filter(route => {
+                        const matchesLength = route.length >= filters.minLength && route.length <= filters.maxLength;
+                        const matchesDifficulty = filters.difficulty === 'all' || route.difficulty === filters.difficulty;
+                        const matchesRegion = filters.region === 'all' || route.region === filters.region;
+                        const matchesType = filters.type === 'all' || route.type === filters.type;
+                        const matchesElevation = route.minElevation >= filters.minElevation && 
+                                                  route.maxElevation <= filters.maxElevation;
+                        const notCompleted = showCompleted || !completedRoutes.includes(route.id);
+                        
+                        return matchesLength && matchesDifficulty && matchesRegion && 
+                               matchesType && matchesElevation && notCompleted;
+                    });
+                    
+                    setRoutes(filtered);
+                    setLoading(false);
+                }, 800);
+            };
+
+            const handleAddJournal = (routeId, journalData) => {
+                setJournals({
+                    ...journals,
+                    [routeId]: journalData
+                });
+            };
+
+            const handleComplete = (routeId) => {
+                if (!completedRoutes.includes(routeId)) {
+                    setCompletedRoutes([...completedRoutes, routeId]);
+                }
+            };
+
+            const handleRemoveCompleted = (routeId) => {
+                setCompletedRoutes(completedRoutes.filter(id => id !== routeId));
+                const newJournals = {...journals};
+                delete newJournals[routeId];
+                setJournals(newJournals);
+            };
+
+            const regions = [
+                { value: 'all', label: t.regions.all },
+                { value: 'north', label: t.regions.north },
+                { value: 'golan', label: t.regions.golan },
+                { value: 'galilee', label: t.regions.galilee },
+                { value: 'carmel', label: t.regions.carmel },
+                { value: 'jerusalem', label: t.regions.jerusalem },
+                { value: 'negev', label: t.regions.negev },
+                { value: 'judean', label: t.regions.judean },
+                { value: 'eilat', label: t.regions.eilat },
+                { value: 'coastal', label: t.regions.coastal }
+            ];
+
+            const difficulties = [
+                { value: 'all', label: t.all },
+                { value: 'easy', label: t.easy },
+                { value: 'moderate', label: t.moderate },
+                { value: 'hard', label: t.hard }
+            ];
+
+            const types = [
+                { value: 'all', label: t.all },
+                { value: 'circular', label: t.circular },
+                { value: 'point-to-point', label: t.pointToPoint }
+            ];
+
+            return (
+                <div className={`min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 ${isRTL ? 'rtl' : ''}`}>
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-blue-600 to-green-600 text-white py-6 shadow-lg">
+                        <div className="max-w-6xl mx-auto px-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h1 className="text-3xl md:text-4xl font-bold mb-2">{t.title}</h1>
+                                    <p className="text-blue-100">{t.subtitle}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setLanguage('en')}
+                                        className={`px-4 py-2 rounded-lg font-medium transition ${
+                                            language === 'en' 
+                                                ? 'bg-white text-blue-600' 
+                                                : 'bg-blue-500 hover:bg-blue-400 text-white'
+                                        }`}
+                                    >
+                                        EN
+                                    </button>
+                                    <button
+                                        onClick={() => setLanguage('he')}
+                                        className={`px-4 py-2 rounded-lg font-medium transition ${
+                                            language === 'he' 
+                                                ? 'bg-white text-blue-600' 
+                                                : 'bg-blue-500 hover:bg-blue-400 text-white'
+                                        }`}
+                                    >
+                                        עב
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto px-4 py-8">
+                        {/* Filters */}
+                        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+                            <h2 className="text-2xl font-bold mb-6">{t.yourPreferences}</h2>
+                            
+                            <div className="space-y-6">
+                                {/* Trail Length */}
+                                <div>
+                                    <label className="block font-medium mb-3">
+                                        {t.trailLength}: {filters.minLength} - {filters.maxLength} {t.km}
+                                    </label>
+                                    <div className="flex gap-4">
+                                        <div className="flex-1">
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="1000"
+                                                value={filters.minLength}
+                                                onChange={(e) => setFilters({...filters, minLength: parseInt(e.target.value)})}
+                                                className="w-full"
+                                            />
+                                            <div className="text-sm text-gray-600 mt-1">{t.min}: {filters.minLength} {t.km}</div>
+                                        </div>
+                                        <div className="flex-1">
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="1000"
+                                                value={filters.maxLength}
+                                                onChange={(e) => setFilters({...filters, maxLength: parseInt(e.target.value)})}
+                                                className="w-full"
+                                            />
+                                            <div className="text-sm text-gray-600 mt-1">{t.max}: {filters.maxLength} {t.km}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Difficulty */}
+                                <div>
+                                    <label className="block font-medium mb-3">{t.difficulty}</label>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {difficulties.map(d => (
+                                            <button
+                                                key={d.value}
+                                                onClick={() => setFilters({...filters, difficulty: d.value})}
+                                                className={`py-3 rounded-lg font-medium transition ${
+                                                    filters.difficulty === d.value
+                                                        ? 'bg-blue-600 text-white shadow-lg transform scale-105'
+                                                        : 'bg-gray-100 hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                {d.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Type */}
+                                <div>
+                                    <label className="block font-medium mb-3">{t.routeType}</label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {types.map(type => (
+                                            <button
+                                                key={type.value}
+                                                onClick={() => setFilters({...filters, type: type.value})}
+                                                className={`py-3 rounded-lg font-medium transition ${
+                                                    filters.type === type.value
+                                                        ? 'bg-green-600 text-white shadow-lg transform scale-105'
+                                                        : 'bg-gray-100 hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                {type.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Region */}
+                                <div>
+                                    <label className="block font-medium mb-3">{t.region}</label>
+                                    <select
+                                        value={filters.region}
+                                        onChange={(e) => setFilters({...filters, region: e.target.value})}
+                                        className="w-full p-3 border rounded-lg bg-white"
+                                    >
+                                        {regions.map(r => (
+                                            <option key={r.value} value={r.value}>{r.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Elevation Range */}
+                                <div>
+                                    <label className="block font-medium mb-3">
+                                        {t.elevationRange}: {filters.minElevation}m - {filters.maxElevation}m
+                                    </label>
+                                    <div className="flex gap-4">
+                                        <div className="flex-1">
+                                            <input
+                                                type="range"
+                                                min="-450"
+                                                max="2200"
+                                                step="50"
+                                                value={filters.minElevation}
+                                                onChange={(e) => setFilters({...filters, minElevation: parseInt(e.target.value)})}
+                                                className="w-full"
+                                            />
+                                            <div className="text-sm text-gray-600 mt-1">{t.min}: {filters.minElevation}m</div>
+                                        </div>
+                                        <div className="flex-1">
+                                            <input
+                                                type="range"
+                                                min="-450"
+                                                max="2200"
+                                                step="50"
+                                                value={filters.maxElevation}
+                                                onChange={(e) => setFilters({...filters, maxElevation: parseInt(e.target.value)})}
+                                                className="w-full"
+                                            />
+                                            <div className="text-sm text-gray-600 mt-1">{t.max}: {filters.maxElevation}m</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Show Completed Toggle */}
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="checkbox"
+                                        id="showCompleted"
+                                        checked={showCompleted}
+                                        onChange={(e) => setShowCompleted(e.target.checked)}
+                                        className="w-5 h-5"
+                                    />
+                                    <label htmlFor="showCompleted" className="font-medium cursor-pointer">
+                                        {showCompleted ? t.hideCompleted : t.showCompleted}
+                                    </label>
+                                </div>
+
+                                {/* Generate Button */}
+                                <button
+                                    onClick={generateRoutes}
+                                    disabled={loading}
+                                    className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white py-4 rounded-lg text-lg font-bold hover:from-blue-700 hover:to-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                                >
+                                    {loading ? t.generating : t.generateRoutes}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Results */}
+                        {routes.length > 0 && (
+                            <div className="mb-8">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-2xl font-bold">
+                                        {t.foundRoutes.replace('{count}', routes.length)}
+                                    </h2>
+                                    {!showCompleted && completedRoutes.length > 0 && (
+                                        <span className="text-sm text-gray-600">
+                                            {t.completedHidden.replace('{count}', completedRoutes.length)}
+                                        </span>
+                                    )}
+                                </div>
+                                
+                                <div className="space-y-6">
+                                    {routes.map(route => (
+                                        <RouteCard
+                                            key={route.id}
+                                            route={route}
+                                            language={language}
+                                            onAddJournal={handleAddJournal}
+                                            onComplete={handleComplete}
+                                            isCompleted={completedRoutes.includes(route.id)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {routes.length === 0 && !loading && (
+                            <div className="text-center py-12 bg-white rounded-xl shadow-lg">
+                                <div className="text-6xl mb-4">🏔️</div>
+                                <p className="text-xl text-gray-600">{t.noRoutes}</p>
+                            </div>
+                        )}
+
+                        {/* Completed Hikes Section */}
+                        {completedRoutes.length > 0 && (
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl shadow-lg p-6 border-2 border-green-200">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-2xl font-bold text-green-900">
+                                        {t.completedHikes} ({completedRoutes.length})
+                                    </h3>
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Are you sure you want to clear all completed hikes?')) {
+                                                setCompletedRoutes([]);
+                                                setJournals({});
+                                            }
+                                        }}
+                                        className="text-sm text-red-600 hover:text-red-800 underline"
+                                    >
+                                        {t.clearAll}
+                                    </button>
+                                </div>
+                                <p className="text-sm text-gray-600 mb-4">{t.completedNote}</p>
+                                
+                                <div className="space-y-3">
+                                    {completedRoutes.map(routeId => {
+                                        const route = sampleRoutes.find(r => r.id === routeId);
+                                        const journal = journals[routeId];
+                                        if (!route) return null;
+                                        
+                                        const routeName = language === 'he' ? route.nameHe : route.name;
+                                        
+                                        return (
+                                            <div key={routeId} className="bg-white rounded-lg p-4 shadow">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex-1">
+                                                        <h4 className="font-bold text-lg mb-1">{routeName}</h4>
+                                                        {journal && (
+                                                            <div className="space-y-1 text-sm text-gray-600">
+                                                                <p>📅 {journal.date}</p>
+                                                                {journal.rating > 0 && (
+                                                                    <p>⭐ {'★'.repeat(journal.rating)}{'☆'.repeat(5 - journal.rating)}</p>
+                                                                )}
+                                                                {journal.notes && (
+                                                                    <p className="italic">"{journal.notes}"</p>
+                                                                )}
+                                                                {journal.photos && journal.photos.length > 0 && (
+                                                                    <div className="flex gap-2 mt-2">
+                                                                        {journal.photos.map((photo, idx) => (
+                                                                            <img
+                                                                                key={idx}
+                                                                                src={photo}
+                                                                                alt={`Memory ${idx + 1}`}
+                                                                                className="w-16 h-16 object-cover rounded"
+                                                                            />
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRemoveCompleted(routeId)}
+                                                        className="text-red-600 hover:text-red-800 text-sm font-medium ml-4"
+                                                    >
+                                                        {t.remove}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="bg-gray-800 text-white py-6 mt-12">
+                        <div className="max-w-6xl mx-auto px-4 text-center">
+                            <p>🥾 {t.title} © 2024</p>
+                            <p className="text-sm text-gray-400 mt-2">
+                                Data source: <a href="https://israelhiking.osm.org.il" target="_blank" rel="noopener noreferrer" className="underline">Israel Hiking Map</a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>
